@@ -18,10 +18,10 @@ def make_grid(width, amount):
     paned_main.add(right_frame)
 
     labels = {}
-    for num in range(2, amount+1):
+    for num in range(1, amount+1):
         labels[num] = tk.Button(left_frame, text=str(num), activebackground="lightgray", activeforeground="black", width=5, height=2)
 
-    for i, num in enumerate(range(2, amount+1)):
+    for i, num in enumerate(range(1, amount+1)):
         row = i // width
         col = i % width
         labels[num].grid(row=row, column=col)

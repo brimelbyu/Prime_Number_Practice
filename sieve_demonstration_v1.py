@@ -1,5 +1,6 @@
 import tkinter as tk
 import math
+from tkinter import font
 
 
 
@@ -71,6 +72,7 @@ def sieves(amount, labels, callback):
                     return
                 A[j] = False
                 labels[j].config(bg="red")
+                labels[j].config(font=strikethrough_font, fg='gray')
                 root.update_idletasks()
                 root.after(100, lambda: next_j(j + i))
             root.after(100, lambda: next_j(i * i))
@@ -83,6 +85,8 @@ def sieves(amount, labels, callback):
 root = tk.Tk()
 root.geometry("600x400")
 root.title("Prime Number Sieve Visualization with Confirmed Primes")
+
+strikethrough_font = font.Font(overstrike=1)  # overstrike=1 means strikethrough
 
 try:
     width = int(input('Enter a width for the grid: '))

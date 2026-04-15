@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sieve of Eratosthenes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #1e1e1e;
+            color: white;
+            padding: 20px;
+        }
+
+        canvas {
+            border: 2px solid white;
+            margin-top: 20px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        input {
+            padding: 8px;
+            width: 80px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        button {
+            padding: 8px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #2e75b6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #1f5c8b;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Sieve of Eratosthenes</h1>
+
+    <div class="controls">
+        <label>Amount: <input type="number" id="amount" value="100"></label>
+        <label>Columns: <input type="number" id="columns" value="10"></label>
+        <button onclick="startSieve()">Start</button>
+        <button onclick="resetGrid()">Reset</button>
+    </div>
+
+    <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 20px;">
+    <canvas id="myCanvas"></canvas>
+
+    <div id="primeBox" style="
+        background-color: #2e2e2e;
+        border: 2px solid white;
+        padding: 15px;
+        min-width: 150px;
+        max-height: 600px;
+        overflow-y: auto;
+        font-family: Arial, sans-serif;
+    ">
+        <h3 style="margin-top: 0; color: #4CAF50;">Prime Numbers</h3>
+        <div id="primeList"></div>
+    </div>
+</div>
+
+    <script>
+        // ── Constants ──────────────────────────────────────
+        const CELL_SIZE = 50;   // width and height of each cell in pixels
+
+        // Colors (same idea as your Tkinter bg= colors)
+        const COLORS = {
+            default:   "#ffffff",  // white  - unprocessed
+            prime:     "#4CAF50",  // green  - confirmed prime
+            current:   "#2e75b6",  // blue   - prime currently being processed
+            multiple:  "#e74c3c",  // red    - being eliminated
+            eliminated:"#95a5a6",  // gray   - already eliminated
+        };
+
+        // ── Global state ───────────────────────────────────
+        // Think of these like global variables in Python
+        let canvas  = document.getElementById("myCanvas");
+        let ctx     = canvas.getContext("2d");  // this is what lets us draw
+        let cells   = {};   // like your labels dictionary in Tkinter
+        let amount  = 0;
+        let columns = 0;
+
+        // ── Draw a single cell ─────────────────────────────
+        // Similar to your color_cell() function in Tkinter
+        function drawCell(num, bgColor) {
+            let index  = num - 2;                    // offset since we start at 2
+            let row    = Math.floor(index / columns); // same as index // columns in Python
+            let col    = index % columns;             // same as index % columns in Python
+
+            let x = col * CELL_SIZE;
+            let y = row * CELL_SIZE;
+
+            // Draw the background rectangle
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+
+            // Draw the border
+            ctx.strokeStyle = "#333333";
+            ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+
+            // Draw the number text
+            ctx.fillStyle = bgColor === COLORS.default ? "black" : "white";
+            ctx.font = "14px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(num, x + CELL_SIZE/2, y + CELL_SIZE/2);
+        }
+
+        // ── Build the grid ─────────────────────────────────
+        // Similar to your make_grid() function in Tkinter
+        function buildGrid() {
+            amount  = parseInt(document.getElementById("amount").value);
+            columns = parseInt(document.getElementById("columns").value);
+
+            // Figure out how many rows we need
+            let rows = Math.ceil(amount / columns);  // same as math.ceil() in Python
+
+            // Resize the canvas to fit
+            canvas.width  = columns * CELL_SIZE;
+            canvas.height = rows    * CELL_SIZE;
+
+            // Draw each cell
+            cells = {};
+            for (let num = 2; num <= amount; num++) {
+                cells[num] = COLORS.default;  // store color state like your dictionary
+                drawCell(num, COLORS.default);
+            }
+        }
+
+        // ── Get center coordinates of a cell ──────────────
+        function getCellCenter(num) {
+            let index = num - 2;
+            let row   = Math.floor(index / columns);
+            let col   = index % columns;
+
+            return {
+                x: col * CELL_SIZE + CELL_SIZE / 2,  // center x
+                y: row * CELL_SIZE + CELL_SIZE / 2   // center y
+            };
+        }
+
+        // ── Reset ──────────────────────────────────────────
+        function resetGrid() {
+            buildGrid();
+            clearPrimeList();
+        }
+
+        // ── Start sieve (placeholder for now) ─────────────
+        // ── Sleep helper ───────────────────────────────────
+        // This is the JavaScript equivalent of time.sleep()
+        // The 'ms' argument is milliseconds (1000ms = 1 second)
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // ── Sieve animation ────────────────────────────────
+        // 'async' means this function can pause without freezing the page
+        async function startSieve() {
+            buildGrid();
+            
+            clearPrimeList();  // clear the prime list display
+
+            let speed = 50;  // milliseconds between each step, lower = faster
+
+            // Boolean array same as your Python sieve
+            // index 0 and 1 are false since 0 and 1 are not prime
+            let A = new Array(amount + 1).fill(true);
+            A[0] = false;
+            A[1] = false;
+
+            // Outer loop — same as your Python sieve
+            for (let i = 2; i <= Math.ceil(Math.sqrt(amount)); i++) {
+                if (A[i]) {
+                
+                    // Highlight current prime in blue
+                    drawCell(i, COLORS.current);
+                    await sleep(speed * 3);
+
+                    // Get the center of the prime cell — this is where all lines start
+                    let primeCenter = getCellCenter(i);
+
+                    // Start a new path from the prime cell
+                    ctx.beginPath();
+                    ctx.strokeStyle = "darkred";
+                    ctx.lineWidth   = 1.5;
+                    ctx.moveTo(primeCenter.x, primeCenter.y);  // pick up pen at the prime
+
+                    // Inner loop — eliminate multiples and extend the line
+                    for (let j = i * i; j <= amount; j += i) {
+                        A[j] = false;
+
+                        // Color the multiple red first
+                        // drawCell(j, COLORS.multiple);
+
+                        // Get center of this multiple's cell
+                        let multipleCenter = getCellCenter(j);
+
+                        // Extend the line to this multiple's center
+                        ctx.lineTo(multipleCenter.x, multipleCenter.y);
+                        ctx.stroke();  // draw the line segment up to here
+
+                        await sleep(speed);
+                    }
+
+                    // After all multiples done, mark prime as confirmed green
+                    drawCell(i, COLORS.prime);
+                    addPrimeToList(i);  // add this prime to the list on the side
+                    await sleep(speed);
+
+                    // Redraw the line one more time so the prime cell color change
+                    // doesn't erase the start of the line
+                    ctx.beginPath();
+                    ctx.strokeStyle = "red";
+                    ctx.lineWidth   = 1.5;
+                    ctx.moveTo(primeCenter.x, primeCenter.y);
+                    for (let j = i * i; j <= amount; j += i) {
+                        if (!A[j]) {
+                            let mc = getCellCenter(j);
+                            ctx.lineTo(mc.x, mc.y);
+                        }
+                    }
+                    ctx.stroke();
+
+                    await sleep(speed);
+
+                    // After processing, mark the prime as confirmed green
+                    drawCell(i, COLORS.prime);
+                    await sleep(speed);
+                }
+            }
+
+            // After the sieve finishes, color all remaining unmarked numbers green
+            for (let i = 2; i <= amount; i++) {
+                if (A[i]) {
+                    drawCell(i, COLORS.prime);
+                    addPrimeToList(i);
+                    await sleep(speed / 2);
+                }
+            }
+        }
+
+        // ── Draw strikethrough line across a cell ──────────
+        function drawStrikethrough(num) {
+            let index = num - 2;
+            let row   = Math.floor(index / columns);
+            let col   = index % columns;
+
+            let x = col * CELL_SIZE;
+            let y = row * CELL_SIZE;
+
+            // Draw a horizontal line through the middle of the cell
+            ctx.strokeStyle = "white";
+            ctx.lineWidth   = 2;
+            ctx.beginPath();
+            ctx.moveTo(x + 5,            y + CELL_SIZE / 2);  // start point
+            ctx.lineTo(x + CELL_SIZE - 5, y + CELL_SIZE / 2);  // end point
+            ctx.stroke();
+        }
+
+        // ── Update the prime list display ──────────────────
+        function addPrimeToList(num) {
+            let primeList = document.getElementById("primeList");
+
+            // Create a new element for this prime
+            let entry = document.createElement("p");
+            entry.textContent = num;
+            entry.style.margin = "4px 0";
+            entry.style.color  = "#4CAF50";  // green to match the cell color
+            entry.style.fontSize = "16px";
+
+            primeList.appendChild(entry);  // add it to the box
+        }
+
+        // ── Clear the prime list ───────────────────────────
+        function clearPrimeList() {
+            document.getElementById("primeList").innerHTML = "";
+        }
+
+        // Build the grid on page load
+        buildGrid();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sieve of Eratosthenes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #1e1e1e;
+            color: white;
+            padding: 20px;
+        }
+
+        canvas {
+            border: 2px solid white;
+            margin-top: 20px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input {
+            padding: 8px;
+            width: 80px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        button {
+            padding: 8px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #2e75b6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #1f5c8b;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Sieve of Eratosthenes</h1>
+
+    <div class="controls">
+        <label>Amount: <input type="number" id="amount" value="100"></label>
+        <label>Columns: <input type="number" id="columns" value="10"></label>
+        <button onclick="startSieve()">Start</button>
+        <button onclick="resetGrid()">Reset</button>
+        <label>Line Width:
+            <input type="number" id="lineWidth" value="1.5" min="0.5" max="10" step="0.5">
+        </label>
+    </div>
+
+    <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 20px;">
+        <canvas id="myCanvas"></canvas>
+
+        <div id="primeBox" style="
+            background-color: #2e2e2e;
+            border: 2px solid white;
+            padding: 15px;
+            min-width: 150px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: Arial, sans-serif;
+        ">
+            <h3 style="margin-top: 0; color: #4CAF50;">Prime Numbers</h3>
+            <div id="primeList"></div>
+        </div>
+    </div>
+
+    <script>
+        // ── Constants ──────────────────────────────────────
+        const CELL_SIZE = 50;
+
+        const COLORS = {
+            default:   "#ffffff",  // white  - unprocessed
+            prime:     "#4CAF50",  // green  - confirmed prime
+            current:   "#2e75b6",  // blue   - prime currently being processed
+            multiple:  "#e74c3c",  // red    - being eliminated
+            eliminated:"#95a5a6",  // gray   - already eliminated
+        };
+
+        // ── Global state ───────────────────────────────────
+        let canvas  = document.getElementById("myCanvas");
+        let ctx     = canvas.getContext("2d");
+        let cells   = {};
+        let amount  = 0;
+        let columns = 0;
+        let isRunning       = false;  // ← was missing before, caused silent bug
+        let confirmedPrimes = new Set();
+
+        // ── Sleep helper ───────────────────────────────────
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // ── Draw a single cell ─────────────────────────────
+        function drawCell(num, bgColor) {
+            let index = num - 1;
+            let row   = Math.floor(index / columns);
+            let col   = index % columns;
+
+            let x = col * CELL_SIZE;
+            let y = row * CELL_SIZE;
+
+            // Background
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+
+            // Border
+            ctx.strokeStyle = "#333333";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+
+            // Number text
+            ctx.fillStyle = bgColor === COLORS.default ? "black" : "white";
+            ctx.font = "14px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(num, x + CELL_SIZE / 2, y + CELL_SIZE / 2);
+        }
+
+        // ── Get center coordinates of a cell ──────────────
+        function getCellCenter(num) {
+            let index = num - 1;
+            let row   = Math.floor(index / columns);
+            let col   = index % columns;
+
+            return {
+                x: col * CELL_SIZE + CELL_SIZE / 2,
+                y: row * CELL_SIZE + CELL_SIZE / 2
+            };
+        }
+
+        // ── Get current line width from input ─────────────
+        function getLineWidth() {
+            return parseFloat(document.getElementById("lineWidth").value);
+        }
+
+        // ── Build the grid ─────────────────────────────────
+        function buildGrid() {
+            amount  = parseInt(document.getElementById("amount").value);
+            columns = parseInt(document.getElementById("columns").value);
+
+            let rows = Math.ceil(amount / columns);
+
+            canvas.width  = columns * CELL_SIZE;
+            canvas.height = rows    * CELL_SIZE;
+
+            cells = {};
+            for (let num = 1; num <= amount; num++) {
+                cells[num] = COLORS.default;
+                drawCell(num, COLORS.default);
+            }
+        }
+
+        // ── Reset ──────────────────────────────────────────
+        function resetGrid() {
+            isRunning = false;  // stop any running animation
+            buildGrid();
+            clearPrimeList();
+            confirmedPrimes = new Set();
+        }
+
+        // ── Sieve animation ────────────────────────────────
+        async function startSieve() {
+            // Stop any previous run cleanly before starting fresh
+            isRunning = false;
+            await sleep(150);  // give previous loop time to exit
+            isRunning = true;
+
+            buildGrid();
+            clearPrimeList();
+            confirmedPrimes = new Set();
+
+            let speed = 50;
+
+            let A = new Array(amount + 1).fill(true);
+            A[0] = false;
+            A[1] = false;
+
+            // ── Outer loop ─────────────────────────────────
+            for (let i = 2; i <= Math.ceil(Math.sqrt(amount)); i++) {
+                if (!isRunning) return;  // bail if reset/restart clicked
+
+                if (A[i]) {
+                    // Highlight current prime in blue
+                    drawCell(i, COLORS.current);
+                    await sleep(speed * 3);
+                    if (!isRunning) return;
+
+                    let primeCenter = getCellCenter(i);
+
+                    // Draw line from prime out to each multiple one at a time
+                    for (let j = i * i; j <= amount; j += i) {
+                        if (!isRunning) return;
+
+                        A[j] = false;
+                        drawCell(j, COLORS.multiple);
+
+                        // Draw line segment from prime center to this multiple
+                        ctx.beginPath();
+                        ctx.strokeStyle = "red";
+                        ctx.lineWidth   = getLineWidth();
+                        ctx.moveTo(primeCenter.x, primeCenter.y);
+                        ctx.lineTo(getCellCenter(j).x, getCellCenter(j).y);
+                        ctx.stroke();
+
+                        await sleep(speed);
+                    }
+
+                    // Confirm prime as green
+                    drawCell(i, COLORS.prime);
+
+                    // Redraw all lines for this prime on top so cell redraw doesn't erase them
+                    for (let j = i * i; j <= amount; j += i) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = "red";
+                        ctx.lineWidth   = getLineWidth();
+                        ctx.moveTo(primeCenter.x, primeCenter.y);
+                        ctx.lineTo(getCellCenter(j).x, getCellCenter(j).y);
+                        ctx.stroke();
+                    }
+
+                    // Add to prime list
+                    if (!confirmedPrimes.has(i)) {
+                        confirmedPrimes.add(i);
+                        addPrimeToList(i);
+                    }
+
+                    await sleep(speed);
+                }
+            }
+
+            // ── Final pass: color remaining primes green ───
+            for (let i = 2; i <= amount; i++) {
+                if (!isRunning) return;
+
+                if (A[i]) {
+                    drawCell(i, COLORS.prime);
+
+                    if (!confirmedPrimes.has(i)) {
+                        confirmedPrimes.add(i);
+                        addPrimeToList(i);
+                    }
+
+                    await sleep(speed / 2);
+                }
+            }
+
+            isRunning = false;  // animation complete
+        }
+
+        // ── Add a prime to the sidebar list ───────────────
+        function addPrimeToList(num) {
+            let primeList = document.getElementById("primeList");
+
+            let entry = document.createElement("p");
+            entry.textContent = num;
+            entry.style.margin   = "4px 0";
+            entry.style.color    = "#4CAF50";
+            entry.style.fontSize = "16px";
+
+            primeList.appendChild(entry);
+        }
+
+        // ── Clear the sidebar list ─────────────────────────
+        function clearPrimeList() {
+            document.getElementById("primeList").innerHTML = "";
+        }
+
+        // Build grid on page load
+        buildGrid();
+
+    </script>
+</body>
+</html>
